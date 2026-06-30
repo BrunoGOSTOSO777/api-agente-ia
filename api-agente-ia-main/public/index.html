@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Meu Chatbot de IA</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #212121; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
+        .chat-container { background: #2f2f2f; width: 100%; max-width: 450px; padding: 20px; border-radius: 15px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
+        h2 { color: #fff; text-align: center; margin-top: 0; }
+        .historico { height: 400px; overflow-y: auto; background: #1a1a1a; padding: 15px; border-radius: 10px; margin-bottom: 15px; display: flex; flex-direction: column; gap: 10px; }
+        .mensagem { padding: 10px 15px; border-radius: 15px; max-width: 80%; line-height: 1.4; font-size: 14px; }
+        .user { background: #007bff; color: white; align-self: flex-end; border-bottom-right-radius: 2px; }
+        .bot { background: #444; color: #fff; align-self: flex-start; border-bottom-left-radius: 2px; }
+        .input-group { display: flex; gap: 10px; }
+        input { flex: 1; padding: 12px; border: none; border-radius: 8px; background: #444; color: white; outline: none; }
+        input::placeholder { color: #aaa; }
+        button { padding: 12px 20px; background: #28a745; color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; transition: 0.3s; }
+        button:hover { background: #218838; }
+    </style>
+</head>
+<body>
+    <div class="chat-container">
+        <h2>🤖 Chatbot do Bruno</h2>
+        <div class="historico" id="historico">
+            <div class="mensagem bot">Olá! Sou sua IA na nuvem. Como posso ajudar hoje?</div>
+        </div>
+        <div class="input-group">
+            <input type="text" id="pergunta" placeholder="Digite sua mensagem aqui..." onkeypress="verificarEnter(event)">
+            <button onclick="enviarMensagem()">Enviar</button>
+        </div>
+    </div>
+
+    <script>
+        // 🚨 ATENÇÃO: COLE O SEU LINK DO RENDER NA LINHA ABAIXO, MAS MANTENHA O /api/chat NO FINAL!
+        const URL_BACKEND = "https://api-agente-ia-blwg.onrender.com";
+
+        function verificarEnter(event) {
+            if (event.key === "Enter") enviarMensagem();
+        }
+
+        async function enviarMensagem() {
+            const input = document.getElementById("pergunta");
+            const historico = document.getElementById("historico");
+            const texto = input.value.trim();
+
+            if(!texto) return;
+
+            // Mostra a mensagem do usuário
+            historico.innerHTML += `<div class="mensagem user">${texto}</div>`;
+            input.value = "";
+            historico.innerHTML += `<div class="mensagem bot" id="loading">Pensando... 🤔</div>`;
+            historico.scrollTop = historico.scrollHeight;
+
+            try {
+                // Faz a requisição para a SUA API lá no Render
+                const resposta = await fetch(URL_BACKEND, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ pergunta: texto })
+                });
+
+                const dados = await resposta.json();
+
+                // Remove o loading e exibe a resposta da IA
+                document.getElementById("loading").remove();
+                historico.innerHTML += `<div class="mensagem bot">${dados.resposta}</div>`;
+                historico.scrollTop = historico.scrollHeight;
+
+            } catch (erro) {
+                document.getElementById("loading").innerHTML = "Erro de conexão com o Servidor ❌ (Lembre-se que o Render grátis demora até 50s para acordar!)";
+            }
+        }
+    </script>
+</body>
+</html>
