@@ -1,12 +1,5 @@
 {
-  "dependencies": {
-    "@google/generative-ai": "^0.24.1",
-    "cors": "^2.8.6",
-    "dotenv": "^17.4.2",
-    "express": "^5.2.1",
-    "mongoose": "^9.9.1"
-  },
-  "name": "api-agente-ia-main",
+  "name": "bruno-e-vagner-salmoes",
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
@@ -15,5 +8,11 @@
   "keywords": [],
   "author": "",
   "license": "ISC",
-  "description": ""
+  "description": "",
+  "dependencies": {
+    "@google/generative-ai": "^0.24.1",
+    "cors": "^2.8.6",
+    "dotenv": "^17.4.2",
+    "express": "^5.2.1"
+  }
 }
