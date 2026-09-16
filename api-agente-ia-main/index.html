@@ -2,28 +2,31 @@
 <html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
-    <title>IA - Área Segura SaaS</title>
-    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+    <title>IA Multimodal - O Olho de Rapina</title>
     <style>
         body { font-family: 'Segoe UI', Tahoma, sans-serif; background: #121212; color: white; display: flex; flex-direction: column; align-items: center; padding: 20px; }
-        .container { background: #1e1e1e; padding: 20px; border-radius: 12px; max-width: 500px; width: 100%; box-shadow: 0 5px 20px rgba(0,0,0,0.5); margin-bottom: 20px; }
-        input { padding: 12px; width: 93%; margin-bottom: 15px; border-radius: 8px; border: none; background: #333; color: white; }
-        button { padding: 12px 20px; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; color: white; width: 100%; margin-bottom: 10px; }
+        .container { background: #1e1e1e; padding: 20px; border-radius: 12px; max-width: 600px; width: 100%; box-shadow: 0 5px 20px rgba(0,0,0,0.5); margin-bottom: 20px; }
+        input[type="text"], input[type="email"], input[type="password"] { padding: 12px; width: 95%; margin-bottom: 15px; border-radius: 8px; border: none; background: #333; color: white; }
+        button { padding: 12px 20px; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; color: white; width: 100%; margin-bottom: 10px; transition: 0.3s;}
+        button:hover { opacity: 0.8; }
         .btn-green { background: #28a745; }
         .btn-blue { background: #007bff; }
-        .btn-red { background: #dc3545; }
-        .btn-gold { background: #ff9800; }
-        .chat-box { height: 350px; overflow-y: auto; background: #0a0a0a; padding: 15px; border-radius: 8px; margin-bottom: 15px; }
-        .msg { padding: 10px; margin-bottom: 10px; border-radius: 8px; max-width: 85%; }
+        .btn-red { background: #dc3545; width: auto;}
+        
+        .chat-box { height: 400px; overflow-y: auto; background: #0a0a0a; padding: 15px; border-radius: 8px; margin-bottom: 15px; }
+        .msg { padding: 10px; margin-bottom: 10px; border-radius: 8px; max-width: 85%; line-height: 1.5; }
         .msg.bot { background: #444; align-self: flex-start; }
         .msg.user { background: #007bff; margin-left: auto; text-align: right; }
-        .ranking-item { padding: 10px; border-bottom: 1px solid #333; }
-        .header-top { display: flex; justify-content: space-between; align-items: center; }
+        .img-preview { max-width: 200px; border-radius: 8px; margin-top: 10px; border: 2px solid #555; }
+        
+        .upload-area { display: flex; align-items: center; gap: 10px; margin-bottom: 15px; background: #2b2b2b; padding: 10px; border-radius: 8px;}
+        input[type="file"] { display: none; }
+        .btn-upload { background: #ff9800; padding: 10px; border-radius: 8px; cursor: pointer; font-weight: bold; text-align: center;}
     </style>
 </head>
 <body>
 
-    <h2 style="color: #007bff;">🔐 Cofre de Usuários (SaaS)</h2>
+    <h2 style="color: #ff9800;">👁️ IA Multimodal (Visão)</h2>
 
     <!-- TELA DE LOGIN / CADASTRO -->
     <div class="container" id="tela-login">
@@ -34,47 +37,42 @@
         
         <button class="btn-green" onclick="fazerLogin()">Entrar (Login)</button>
         <button class="btn-blue" onclick="fazerCadastro()">Criar Conta Nova</button>
-        <p id="msg-erro" style="color: red; text-align: center; font-size: 14px;"></p>
+        <p id="msg-erro" style="color: red; text-align: center;"></p>
     </div>
 
-    <!-- TELA DO JOGO (SÓ ENTRA COM CRACHÁ JWT) -->
+    <!-- TELA DO JOGO MULTIMODAL -->
     <div class="container" id="tela-jogo" style="display: none;">
-        <div class="header-top">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
             <span id="nome-jogador" style="font-weight: bold; color: #28a745;"></span>
-            <div>
-                <button class="btn-gold" style="width: auto; padding: 8px;" onclick="verRanking()">🏆 Ranking</button>
-                <button class="btn-red" style="width: auto; padding: 8px;" onclick="sairDaConta()">Sair</button>
-            </div>
+            <button class="btn-red" onclick="sairDaConta()">Sair da Conta</button>
         </div>
 
         <div class="chat-box" id="historico">
-            <div class="msg bot">Guardião: Crachá JWT aceito. Pode mandar sua charada!</div>
+            <div class="msg bot">IA Visual: Olá! Você pode me mandar textos, ou me mandar fotos (como cachorros, cupons fiscais) para eu analisar!</div>
+        </div>
+
+        <!-- Área de Upload de Imagem -->
+        <div class="upload-area">
+            <label for="imagemUpload" class="btn-upload">📷 Anexar Foto</label>
+            <input type="file" id="imagemUpload" accept="image/*" onchange="mostrarPreview()">
+            <img id="miniatura" style="display: none; height: 50px; border-radius: 5px;">
+            <span id="nome-arquivo" style="font-size: 12px; color: #aaa;">Nenhum arquivo</span>
         </div>
 
         <div style="display: flex; gap: 10px;">
-            <input type="text" id="pergunta" placeholder="Sua resposta..." onkeypress="if(event.key === 'Enter') enviar()" style="width: 75%;">
-            <button class="btn-green" style="width: 25%;" onclick="enviar()">Enviar</button>
+            <input type="text" id="pergunta" placeholder="Pergunte sobre a imagem..." onkeypress="if(event.key === 'Enter') enviar()" style="width: 75%; margin:0;">
+            <button class="btn-green" style="width: 25%; margin:0;" onclick="enviar()" id="btn-enviar">Enviar</button>
         </div>
-    </div>
-
-    <!-- TELA DE RANKING -->
-    <div class="container" id="tela-ranking" style="display: none;">
-        <h3 style="color: gold; text-align: center;">🏆 Hall da Fama Seguro</h3>
-        <div id="lista-ranking"></div>
-        <button class="btn-red" onclick="fecharRanking()">Voltar</button>
     </div>
 
     <script>
         // SEU LINK DO RENDER:
         const URL_API = "https://api-agente-ia-blwg.onrender.com/api";
 
-        // DESAFIO HACKER: PERSISTÊNCIA (Verifica se já tem token ao apertar F5)
         window.onload = () => {
             const token = localStorage.getItem('token_saas');
             const nome = localStorage.getItem('nome_user');
-            if (token && nome) {
-                mostrarTelaJogo(nome);
-            }
+            if (token && nome) mostrarTelaJogo(nome);
         };
 
         function mostrarTelaJogo(nome) {
@@ -83,116 +81,133 @@
             document.getElementById("nome-jogador").innerText = `👤 ${nome}`;
         }
 
-        // FASE 6: Botão Sair (Desafio Hacker)
         function sairDaConta() {
             localStorage.removeItem('token_saas');
             localStorage.removeItem('nome_user');
-            window.location.reload(); // Recarrega a página voltando pro Login
+            window.location.reload(); 
         }
 
         async function fazerCadastro() {
             const nome = document.getElementById("reg-nome").value;
             const email = document.getElementById("log-email").value;
             const senha = document.getElementById("log-senha").value;
-            const msg = document.getElementById("msg-erro");
-
             const res = await fetch(`${URL_API}/auth/register`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ nome, email, senha })
             });
             const dados = await res.json();
-            
-            if (res.ok) { msg.style.color = "green"; msg.innerText = "Cadastrado com sucesso! Agora clique em Entrar."; } 
-            else { msg.style.color = "red"; msg.innerText = dados.erro; }
+            if (res.ok) alert("Cadastrado! Faça o Login.");
+            else alert(dados.erro);
         }
 
         async function fazerLogin() {
             const email = document.getElementById("log-email").value;
             const senha = document.getElementById("log-senha").value;
-            const msg = document.getElementById("msg-erro");
-
             const res = await fetch(`${URL_API}/auth/login`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ email, senha })
             });
             const dados = await res.json();
-
             if (res.ok) {
-                // FASE 6: Guardando o Crachá
                 localStorage.setItem('token_saas', dados.token);
                 localStorage.setItem('nome_user', dados.nome);
                 mostrarTelaJogo(dados.nome);
-            } else {
-                msg.style.color = "red"; msg.innerText = dados.erro;
+            } else { alert(dados.erro); }
+        }
+
+        // Preview da Imagem no HTML
+        function mostrarPreview() {
+            const input = document.getElementById('imagemUpload');
+            const preview = document.getElementById('miniatura');
+            const nomeTxt = document.getElementById('nome-arquivo');
+            
+            if (input.files && input.files[0]) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    preview.src = e.target.result;
+                    preview.style.display = 'block';
+                }
+                reader.readAsDataURL(input.files[0]);
+                nomeTxt.innerText = input.files[0].name;
             }
         }
 
         async function enviar() {
-            const input = document.getElementById("pergunta");
-            const texto = input.value.trim();
-            if (!texto) return;
-
+            const inputPergunta = document.getElementById("pergunta");
+            const inputImagem = document.getElementById("imagemUpload");
             const historico = document.getElementById("historico");
-            historico.innerHTML += `<div class="msg user">${texto}</div>`;
-            input.value = "";
+            const btn = document.getElementById("btn-enviar");
+
+            const texto = inputPergunta.value.trim();
+            const arquivo = inputImagem.files[0];
+
+            if (!texto && !arquivo) return alert("Envie uma mensagem ou uma imagem!");
+
+            // 1. Mostrar no HTML o que o usuário enviou
+            let balaoUser = `<div class="msg user">`;
+            if (arquivo) {
+                const urlTemporaria = URL.createObjectURL(arquivo);
+                balaoUser += `<img src="${urlTemporaria}" class="img-preview"><br>`;
+            }
+            if (texto) balaoUser += `${texto}`;
+            balaoUser += `</div>`;
+            historico.innerHTML += balaoUser;
             historico.scrollTop = historico.scrollHeight;
 
+            // Limpa os campos
+            inputPergunta.value = "";
+            inputImagem.value = "";
+            document.getElementById('miniatura').style.display = 'none';
+            document.getElementById('nome-arquivo').innerText = 'Nenhum arquivo';
+
             const token = localStorage.getItem('token_saas');
+            btn.innerText = "Pensando...";
+            btn.disabled = true;
 
             try {
-                const res = await fetch(`${URL_API}/chat`, {
+                // FASE 4: O FormData permite enviar Imagens + Textos juntos!
+                const formData = new FormData();
+                formData.append("pergunta", texto || "Descreva esta imagem.");
+                if (arquivo) formData.append("imagem", arquivo);
+
+                const res = await fetch(`${URL_API}/chat/vision`, {
                     method: "POST",
                     headers: { 
-                        "Content-Type": "application/json",
-                        "Authorization": `Bearer ${token}` // FASE 6: Enviando o Crachá
+                        "Authorization": `Bearer ${token}` 
+                        // IMPORTANTE: NÃO usamos 'Content-Type': 'application/json' quando enviamos arquivos!
                     },
-                    body: JSON.stringify({ pergunta: texto })
+                    body: formData
                 });
                 
-                if (res.status === 401) { alert("Sessão expirada. Faça login novamente!"); sairDaConta(); return; }
-
                 const dados = await res.json();
-                historico.innerHTML += `<div class="msg bot">Guardião: ${dados.resposta}</div>`;
+                
+                if (res.status === 400 || res.status === 401) {
+                    alert(dados.erro);
+                    btn.innerText = "Enviar";
+                    btn.disabled = false;
+                    return;
+                }
+
+                // Exibe a resposta e a URL do Cloudinary se existir
+                let balaoBot = `<div class="msg bot">`;
+                balaoBot += `<b>Guardião Visual:</b><br>${dados.resposta.replace(/\n/g, '<br>')}`;
+                if(dados.imagemUrl) {
+                    balaoBot += `<br><br><small style="color: #aaa;">☁️ Imagem salva em segurança no Cloudinary!</small>`;
+                }
+                balaoBot += `</div>`;
+                
+                historico.innerHTML += balaoBot;
                 historico.scrollTop = historico.scrollHeight;
 
-                if (dados.resposta.toLowerCase().includes("acertou") || dados.resposta.toLowerCase().includes("parabéns")) {
-                    confetti({ particleCount: 150, spread: 80, origin: { y: 0.6 } });
-                }
             } catch (e) {
-                historico.innerHTML += `<div class="msg bot" style="color: red;">Erro ao conectar.</div>`;
+                historico.innerHTML += `<div class="msg bot" style="color: red;">Erro ao processar imagem.</div>`;
             }
-        }
 
-        async function verRanking() {
-            const token = localStorage.getItem('token_saas');
-            document.getElementById("tela-jogo").style.display = "none";
-            document.getElementById("tela-ranking").style.display = "block";
-            const lista = document.getElementById("lista-ranking");
-            lista.innerHTML = "Carregando...";
-
-            try {
-                const res = await fetch(`${URL_API}/ranking`, {
-                    headers: { "Authorization": `Bearer ${token}` }
-                });
-                
-                if (res.status === 401) { alert("Não Autorizado!"); sairDaConta(); return; }
-
-                const jogadores = await res.json();
-                lista.innerHTML = jogadores.map((j, i) => {
-                    let icone = i === 0 ? "🥇" : (i === 1 ? "🥈" : (i === 2 ? "🥉" : ""));
-                    return `<div class="ranking-item">${icone} <b>${j.titulo}</b> <span>(${j.xp} XP)</span></div>`;
-                }).join("");
-            } catch (e) {
-                lista.innerHTML = "Erro ao buscar ranking.";
-            }
-        }
-
-        function fecharRanking() {
-            document.getElementById("tela-ranking").style.display = "none";
-            document.getElementById("tela-jogo").style.display = "block";
+            btn.innerText = "Enviar";
+            btn.disabled = false;
         }
     </script>
 </body>
-</html>
+</html>git add .

@@ -4,36 +4,49 @@ const cors = require('cors');
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const multer = require('multer');
+const cloudinary = require('cloudinary').v2;
 const { GoogleGenerativeAI } = require("@google/generative-ai");
 
-// Importando nossos novos módulos de segurança
 const Usuario = require('./models/Usuario');
+const Mensagem = require('./models/Mensagem'); // Nosso novo arquivo!
 const autenticarToken = require('./middlewares/authMiddleware');
 
 const app = express();
 app.use(express.json());
 app.use(cors());
 
+// 1. Configurações de Nuvem
 mongoose.connect(process.env.MONGODB_URI)
     .then(() => console.log("📦 Conectado ao MongoDB!"))
     .catch(err => console.error("❌ Erro no MongoDB:", err));
 
+cloudinary.config({
+    cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+    api_key: process.env.CLOUDINARY_API_KEY,
+    api_secret: process.env.CLOUDINARY_API_SECRET
+});
+
+// Middleware do Multer (Deixa a imagem na Memória RAM temporariamente)
+const upload = multer({ 
+    storage: multer.memoryStorage(),
+    limits: { fileSize: 5 * 1024 * 1024 } // Limite de 5MB
+});
+
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+
 // ==========================================
-// FASE 3: ROTAS DE AUTENTICAÇÃO (/api/auth)
+// ROTAS DE AUTENTICAÇÃO E RANKING (Mantidas)
 // ==========================================
 app.post('/api/auth/register', async (req, res) => {
     try {
         const { nome, email, senha } = req.body;
         const existe = await Usuario.findOne({ email });
         if (existe) return res.status(400).json({ erro: "E-mail já cadastrado!" });
-
         const novoUser = new Usuario({ nome, email, senha });
-        await novoUser.save(); // Aqui o bcrypt entra em ação lá no model!
-        
+        await novoUser.save();
         return res.status(201).json({ sucesso: true, mensagem: "Cadastro realizado!" });
-    } catch (erro) {
-        return res.status(500).json({ erro: "Erro ao cadastrar." });
-    }
+    } catch (erro) { return res.status(500).json({ erro: "Erro ao cadastrar." }); }
 });
 
 app.post('/api/auth/login', async (req, res) => {
@@ -41,104 +54,83 @@ app.post('/api/auth/login', async (req, res) => {
         const { email, senha } = req.body;
         const usuario = await Usuario.findOne({ email });
         if (!usuario) return res.status(400).json({ erro: "E-mail não encontrado." });
-
-        // Compara a senha digitada com a criptografada no banco
         const senhaValida = await bcrypt.compare(senha, usuario.senha);
         if (!senhaValida) return res.status(401).json({ erro: "Senha incorreta." });
-
-        // Gera o Crachá Digital (JWT) contendo o ID e Nome do usuário
-        const token = jwt.sign(
-            { id: usuario._id, nome: usuario.nome }, 
-            process.env.JWT_SECRET, 
-            { expiresIn: '24h' }
-        );
-
+        const token = jwt.sign({ id: usuario._id, nome: usuario.nome }, process.env.JWT_SECRET, { expiresIn: '24h' });
         return res.status(200).json({ token, nome: usuario.nome });
-    } catch (erro) {
-        return res.status(500).json({ erro: "Erro ao fazer login." });
-    }
+    } catch (erro) { return res.status(500).json({ erro: "Erro no login." }); }
 });
 
-// ==========================================
-// FASE 5: PROTEGENDO A IA E O JOGO
-// ==========================================
-async function adicionarXP(userId, quantidade) {
-    try {
-        // Agora usamos o ID verdadeiro do usuário no banco
-        await Usuario.findByIdAndUpdate(userId, { $inc: { xp: quantidade } });
-        return { sucesso: true, mensagem: `XP atualizado.` };
-    } catch (erro) {
-        return { erro: "Falha ao atualizar banco." };
-    }
-}
-
-const declaracaoXP = {
-    name: "adicionarXP",
-    description: "Chame esta função para dar ou tirar pontos do jogador.",
-    parameters: {
-        type: "OBJECT",
-        properties: { quantidade: { type: "NUMBER" } },
-        required: ["quantidade"]
-    }
-};
-
-const apiKey = process.env.GEMINI_API_KEY;
-const genAI = new GoogleGenerativeAI(apiKey);
-const model = genAI.getGenerativeModel({
-    model: "gemini-1.5-flash",
-    tools: [{ functionDeclarations: [declaracaoXP] }],
-    systemInstruction: "Você é o Mestre de um jogo. Proponha charadas de tecnologia. Se o jogador acertar, chame a função 'adicionarXP' dando 50 pontos E DIGA A PALAVRA 'Parabéns' ou 'Acertou'. Se errar, tire 10 pontos."
-});
-
-const sessoes = {}; 
-
-// 🚨 ROTA PROTEGIDA: Só entra se tiver o `autenticarToken`
-app.post('/api/chat', autenticarToken, async (req, res) => {
-    try {
-        const { pergunta } = req.body;
-        const userId = req.usuario.id; // Pegamos o ID direto do Token (seguro!)
-
-        if (!pergunta) return res.status(400).json({ erro: "Faltando dados!" });
-        if (!sessoes[userId]) sessoes[userId] = model.startChat();
-        
-        const chat = sessoes[userId];
-        let resultado = await chat.sendMessage(pergunta);
-        let respostaDaIA = resultado.response;
-
-        while (respostaDaIA.functionCalls) {
-            const chamada = respostaDaIA.functionCalls[0];
-            let functionResponse = {};
-
-            if (chamada.name === "adicionarXP") {
-                functionResponse = await adicionarXP(userId, chamada.args.quantidade);
-            }
-
-            resultado = await chat.sendMessage([{ functionResponse: { name: chamada.name, response: functionResponse } }]);
-            respostaDaIA = resultado.response;
-        }
-
-        return res.status(200).json({ resposta: respostaDaIA.text() });
-    } catch (erro) {
-        return res.status(500).json({ erro: "Erro na IA." });
-    }
-});
-
-// 🚨 ROTA PROTEGIDA: O Ranking também é fechado agora!
 app.get('/api/ranking', autenticarToken, async (req, res) => {
     try {
         const jogadores = await Usuario.find().sort({ xp: -1 }).limit(10);
-        const rankingHacker = jogadores.map(jog => {
-            let titulo = "Guerreiro";
-            if (jog.xp < 100) titulo = "Novato";
-            else if (jog.xp >= 100 && jog.xp < 500) titulo = "Mestre";
-            else if (jog.xp >= 500) titulo = "Lenda Viva";
-            return { nome: jog.nome, xp: jog.xp, titulo: `${titulo}: ${jog.nome}` };
+        const ranking = jogadores.map(jog => ({ nome: jog.nome, xp: jog.xp }));
+        return res.status(200).json(ranking);
+    } catch (erro) { return res.status(500).json({ erro: "Erro no ranking." }); }
+});
+
+// ==========================================
+// A ROTA DA VISÃO MULTIMODAL (POST /api/chat/vision)
+// ==========================================
+// O middleware upload.single('imagem') intercepta arquivos!
+app.post('/api/chat/vision', autenticarToken, upload.single('imagem'), async (req, res) => {
+    try {
+        const { pergunta } = req.body;
+        const userId = req.usuario.id;
+        if (!pergunta) return res.status(400).json({ erro: "A pergunta é obrigatória." });
+
+        let imagemUrlCloudinary = null;
+        let imagePart = null;
+
+        // Se o usuário mandou uma imagem...
+        if (req.file) {
+            // Requisito: Não aceitar PDF!
+            if (req.file.mimetype === 'application/pdf') {
+                return res.status(400).json({ erro: "Arquivos PDF não são suportados. Envie imagens!" });
+            }
+
+            // 1. Enviar para a Inteligência Artificial (Multimodal)
+            const base64Image = req.file.buffer.toString("base64");
+            imagePart = { inlineData: { data: base64Image, mimeType: req.file.mimetype } };
+
+            // 2. Salvar para sempre no Cloudinary
+            imagemUrlCloudinary = await new Promise((resolve, reject) => {
+                const stream = cloudinary.uploader.upload_stream({ folder: "chat-ia" }, (erro, resultado) => {
+                    if (resultado) resolve(resultado.secure_url);
+                    else reject(erro);
+                });
+                stream.end(req.file.buffer); // Envia da memória RAM pra Nuvem
+            });
+        }
+
+        // Prepara a IA (Usamos o Flash porque ele enxerga imagens muito bem!)
+        const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+        
+        // Se tiver imagem manda as duas coisas. Se não, manda só o texto.
+        const pacoteParaIA = imagePart ? [pergunta, imagePart] : pergunta;
+        const resultadoIA = await model.generateContent(pacoteParaIA);
+        const respostaTexto = resultadoIA.response.text();
+
+        // Salvar Histórico no Banco de Dados
+        const novaMensagem = new Mensagem({
+            usuarioId: userId,
+            pergunta: pergunta,
+            respostaIA: respostaTexto,
+            imagemUrl: imagemUrlCloudinary
         });
-        return res.status(200).json(rankingHacker);
+        await novaMensagem.save();
+
+        // Retorna a resposta pro Front-end (com a URL da imagem)
+        return res.status(200).json({ 
+            resposta: respostaTexto, 
+            imagemUrl: imagemUrlCloudinary 
+        });
+
     } catch (erro) {
-        return res.status(500).json({ erro: "Erro no ranking." });
+        console.error("Erro na Visão:", erro);
+        return res.status(500).json({ erro: "Erro interno no servidor." });
     }
 });
 
 const PORTA = process.env.PORT || 3000;
-app.listen(PORTA, () => console.log(`🚀 API SecOps rodando na porta ${PORTA}`));
+app.listen(PORTA, () => console.log(`🚀 API Multimodal rodando na porta ${PORTA}`));
