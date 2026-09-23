@@ -19,7 +19,7 @@ async function executarAgente() {
         console.log("⚡ [SISTEMA]: Energizando capacitores e conectando ao cérebro eletrônico...");
 
         // Usaremos o modelo gemini-1.5-flash que é rápido e eficiente
-        const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+        const model = genAI.getGenerativeModel({ model: "gemini-3.5-flash-lite" });
 
         // --- ENGENHARIA DE PROMPT (DESAFIO CONCLUÍDO) ---
         // Persona: Cientista Maluco

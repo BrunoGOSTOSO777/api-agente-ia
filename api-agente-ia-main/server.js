@@ -165,7 +165,7 @@ app.post('/api/chat/vision', autenticarToken, upload.single('imagem'), async (re
         }
 
         // 3. IA Gemini 1.5 Flash (enxerga pixels e texto simultaneamente)
-        const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+        const model = genAI.getGenerativeModel({ model: "gemini-3.5-flash-lite" });
         const conteudo = imagePart ? [pergunta, imagePart] : pergunta;
         const resultadoIA = await model.generateContent(conteudo);
         const respostaTexto = resultadoIA.response.text();
