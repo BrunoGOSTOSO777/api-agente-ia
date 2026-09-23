@@ -57,7 +57,7 @@
 
     <script>
         // O LINK DO SEU RENDER CORRIGIDO AQUI:
-        const URL_API = "https://api-agente-ia-blwg.onrender.com/api";
+        const URL_API = "https://api-agente-ia-blwg.onrender.com";
         let nickJogador = "";
 
         function entrarJogo() {
@@ -81,7 +81,7 @@
 
             try {
                 // Manda a pergunta E o nickname pro backend
-                const res = await fetch(`${URL_API}/chat`, {
+                const res = await fetch(`${URL_API}/api/chat`, {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({ pergunta: texto, nickname: nickJogador })
@@ -109,7 +109,7 @@
             lista.innerHTML = "Consultando Banco de Dados...";
 
             try {
-                const res = await fetch(`${URL_API}/ranking`);
+                const res = await fetch(`${URL_API}/api/ranking`);
                 const jogadores = await res.json();
                 
                 // Desenha a lista. O primeiro ganha medalha!

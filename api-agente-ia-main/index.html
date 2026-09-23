@@ -67,7 +67,7 @@
 
     <script>
         // SEU LINK DO RENDER:
-        const URL_API = "https://api-agente-ia-blwg.onrender.com/api";
+        const URL_API = "https://api-agente-ia-blwg.onrender.com";
 
         window.onload = () => {
             const token = localStorage.getItem('token_saas');
@@ -91,7 +91,7 @@
             const nome = document.getElementById("reg-nome").value;
             const email = document.getElementById("log-email").value;
             const senha = document.getElementById("log-senha").value;
-            const res = await fetch(`${URL_API}/auth/register`, {
+            const res = await fetch(`${URL_API}/api/auth/register`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ nome, email, senha })
@@ -104,7 +104,7 @@
         async function fazerLogin() {
             const email = document.getElementById("log-email").value;
             const senha = document.getElementById("log-senha").value;
-            const res = await fetch(`${URL_API}/auth/login`, {
+            const res = await fetch(`${URL_API}/api/auth/login`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ email, senha })
@@ -172,7 +172,7 @@
                 formData.append("pergunta", texto || "Descreva esta imagem.");
                 if (arquivo) formData.append("imagem", arquivo);
 
-                const res = await fetch(`${URL_API}/chat/vision`, {
+                const res = await fetch(`${URL_API}/api/chat/vision`, {
                     method: "POST",
                     headers: { 
                         "Authorization": `Bearer ${token}` 
