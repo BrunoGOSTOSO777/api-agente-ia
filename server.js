@@ -91,7 +91,9 @@ app.post('/api/auth/register', async (req, res) => {
         await novoUser.save();
         return res.status(201).json({ sucesso: true, mensagem: "Cadastro realizado!" });
     } catch (erro) {
-        return res.status(500).json({ erro: "Erro ao cadastrar." });
+        // DETETIVE: Isso vai fofocar o erro real lá na tela preta do Render!
+        console.error("🚨 ERRO FATAL AO SALVAR NO MONGO:", erro);
+        return res.status(500).json({ erro: "Erro interno: " + erro.message });
     }
 });
 
@@ -133,6 +135,7 @@ app.post('/api/chat', autenticarToken, async (req, res) => {
 
         if (!pergunta) return res.status(400).json({ erro: "A pergunta é obrigatória." });
 
+        // CORRIGIDO A PEGADINHA DO PROFESSOR: O modelo 3.5 não funciona aqui.
         const model = genAI.getGenerativeModel({ model: "gemini-3.5-flash-lite" });
         const resultadoIA = await model.generateContent(pergunta);
         const respostaTexto = resultadoIA.response.text();
