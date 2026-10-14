@@ -19,7 +19,6 @@ mongoose.connect(process.env.MONGODB_URI)
     .then(() => console.log("📦 Conectado ao MongoDB com sucesso!"))
     .catch(err => console.error("❌ Erro ao conectar no MongoDB:", err.message));
 
-// Modelo de Usuário (com criptografia de senha)
 const usuarioSchema = new mongoose.Schema({
     nome: { type: String, required: true },
     email: { type: String, unique: true, required: true },
@@ -35,7 +34,6 @@ usuarioSchema.pre('save', async function(next) {
 
 const Usuario = mongoose.models.Usuario || mongoose.model('Usuario', usuarioSchema);
 
-// Modelo de Mensagens do Chat (com histórico de imagens)
 const mensagemSchema = new mongoose.Schema({
     usuarioId: { type: mongoose.Schema.Types.ObjectId, ref: 'Usuario' },
     pergunta: { type: String, required: true },
@@ -55,10 +53,9 @@ cloudinary.config({
     api_secret: process.env.CLOUDINARY_API_SECRET
 });
 
-// Multer na memória RAM (Storage efêmero exigido pelo Render)
 const upload = multer({ 
     storage: multer.memoryStorage(),
-    limits: { fileSize: 5 * 1024 * 1024 } // Máximo 5MB
+    limits: { fileSize: 5 * 1024 * 1024 } 
 });
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
@@ -70,12 +67,10 @@ function autenticarToken(req, res, next) {
     const authHeader = req.headers['authorization'];
     const token = authHeader && authHeader.split(' ')[1];
 
-    if (!token) {
-        return res.status(401).json({ erro: "Acesso negado. Token não fornecido." });
-    }
+    if (!token) return res.status(401).json({ erro: "Acesso negado." });
 
     jwt.verify(token, process.env.JWT_SECRET || 'MinhaPalavraSuperSecretaEDificilDeAdivinhar2026', (err, usuario) => {
-        if (err) return res.status(401).json({ erro: "Token inválido ou expirado." });
+        if (err) return res.status(401).json({ erro: "Token inválido." });
         req.usuario = usuario;
         next();
     });
@@ -127,7 +122,36 @@ app.get('/api/ranking', autenticarToken, async (req, res) => {
 });
 
 // ==========================================
-// 5. ROTA DA VISÃO MULTIMODAL (POST /api/chat/vision)
+// 5A. ROTA DO CHAT NORMAL (Texto)
+// ==========================================
+app.post('/api/chat', autenticarToken, async (req, res) => {
+    try {
+        const { pergunta } = req.body;
+        const userId = req.usuario.id;
+
+        if (!pergunta) return res.status(400).json({ erro: "A pergunta é obrigatória." });
+
+        const model = genAI.getGenerativeModel({ model: "gemini-3.5-flash-lite" });
+        const resultadoIA = await model.generateContent(pergunta);
+        const respostaTexto = resultadoIA.response.text();
+
+        const novaMensagem = new Mensagem({
+            usuarioId: userId,
+            pergunta: pergunta,
+            respostaIA: respostaTexto,
+            imagemUrl: null
+        });
+        await novaMensagem.save();
+
+        return res.status(200).json({ resposta: respostaTexto });
+    } catch (erro) {
+        console.error("Erro no chat:", erro);
+        return res.status(500).json({ erro: "Erro interno no servidor." });
+    }
+});
+
+// ==========================================
+// 5B. ROTA DA VISÃO MULTIMODAL (Imagens)
 // ==========================================
 app.post('/api/chat/vision', autenticarToken, upload.single('imagem'), async (req, res) => {
     try {
@@ -140,21 +164,13 @@ app.post('/api/chat/vision', autenticarToken, upload.single('imagem'), async (re
         let imagePart = null;
 
         if (req.file) {
-            // Rejeita PDFs amigavelmente (Critério de Aceite)
             if (req.file.mimetype === 'application/pdf') {
-                return res.status(400).json({ erro: "Arquivos PDF não são suportados. Envie uma imagem!" });
+                return res.status(400).json({ erro: "Arquivos PDF não suportados." });
             }
 
-            // 1. Converte imagem para base64 pro Gemini
             const base64Image = req.file.buffer.toString("base64");
-            imagePart = {
-                inlineData: {
-                    data: base64Image,
-                    mimeType: req.file.mimetype
-                }
-            };
+            imagePart = { inlineData: { data: base64Image, mimeType: req.file.mimetype } };
 
-            // 2. Faz upload para o Cloudinary (Storage persistente)
             imagemUrlCloudinary = await new Promise((resolve, reject) => {
                 const stream = cloudinary.uploader.upload_stream({ folder: "chat-ia" }, (erro, resultado) => {
                     if (resultado) resolve(resultado.secure_url);
@@ -164,13 +180,11 @@ app.post('/api/chat/vision', autenticarToken, upload.single('imagem'), async (re
             });
         }
 
-        // 3. IA Gemini 1.5 Flash (enxerga pixels e texto simultaneamente)
-        const model = genAI.getGenerativeModel({ model: "gemini-3.5-flash-lite" });
+        const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
         const conteudo = imagePart ? [pergunta, imagePart] : pergunta;
         const resultadoIA = await model.generateContent(conteudo);
         const respostaTexto = resultadoIA.response.text();
 
-        // 4. Salva pergunta, resposta e URL da imagem no MongoDB
         const novaMensagem = new Mensagem({
             usuarioId: userId,
             pergunta: pergunta,
@@ -179,14 +193,11 @@ app.post('/api/chat/vision', autenticarToken, upload.single('imagem'), async (re
         });
         await novaMensagem.save();
 
-        return res.status(200).json({
-            resposta: respostaTexto,
-            imagemUrl: imagemUrlCloudinary
-        });
+        return res.status(200).json({ resposta: respostaTexto, imagemUrl: imagemUrlCloudinary });
 
     } catch (erro) {
         console.error("Erro na visão:", erro);
-        return res.status(500).json({ erro: "Erro interno no processamento da IA." });
+        return res.status(500).json({ erro: "Erro interno." });
     }
 });
 
