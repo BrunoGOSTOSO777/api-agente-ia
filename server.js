@@ -15,7 +15,18 @@ app.use(express.json());
 app.use(cors());
 
 // ==========================================
-// 1. BANCO DE DADOS MONGODB & MODELOS EMBUTIDOS
+// 🕵️‍♂️ DETETIVE: Radar de Requisições
+// ==========================================
+app.use((req, res, next) => {
+    console.log(`\n🌍 Nova Requisição: [${req.method}] ${req.url}`);
+    if (Object.keys(req.body).length > 0) {
+        console.log("📦 Dados recebidos:", req.body);
+    }
+    next();
+});
+
+// ==========================================
+// 1. BANCO DE DADOS MONGODB & MODELOS
 // ==========================================
 mongoose.connect(process.env.MONGODB_URI)
     .then(() => console.log("📦 Conectado ao MongoDB com sucesso!"))
@@ -62,13 +73,9 @@ const upload = multer({
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
-// ==========================================
-// 3. MIDDLEWARE DE SEGURANÇA (JWT)
-// ==========================================
 function autenticarToken(req, res, next) {
     const authHeader = req.headers['authorization'];
     const token = authHeader && authHeader.split(' ')[1];
-
     if (!token) return res.status(401).json({ erro: "Acesso negado." });
 
     jwt.verify(token, process.env.JWT_SECRET || 'MinhaPalavraSuperSecretaEDificilDeAdivinhar2026', (err, usuario) => {
@@ -84,15 +91,23 @@ function autenticarToken(req, res, next) {
 app.post('/api/auth/register', async (req, res) => {
     try {
         const { nome, email, senha } = req.body;
+        
+        // Trava de segurança para não dar Erro 500 se enviar vazio
+        if (!nome || !email || !senha) {
+            console.log("❌ Tentativa de cadastro com campos vazios.");
+            return res.status(400).json({ erro: "Preencha todos os campos antes de cadastrar!" });
+        }
+
         const existe = await Usuario.findOne({ email });
         if (existe) return res.status(400).json({ erro: "E-mail já cadastrado!" });
 
         const novoUser = new Usuario({ nome, email, senha });
         await novoUser.save();
+        
+        console.log("✅ Usuário salvo com sucesso no Banco de Dados!");
         return res.status(201).json({ sucesso: true, mensagem: "Cadastro realizado!" });
     } catch (erro) {
-        // DETETIVE: Isso vai fofocar o erro real lá na tela preta do Render!
-        console.error("🚨 ERRO FATAL AO SALVAR NO MONGO:", erro);
+        console.error("🚨 ERRO FATAL AO SALVAR:", erro);
         return res.status(500).json({ erro: "Erro interno: " + erro.message });
     }
 });
@@ -109,6 +124,7 @@ app.post('/api/auth/login', async (req, res) => {
         const secret = process.env.JWT_SECRET || 'MinhaPalavraSuperSecretaEDificilDeAdivinhar2026';
         const token = jwt.sign({ id: usuario._id, nome: usuario.nome }, secret, { expiresIn: '24h' });
 
+        console.log("✅ Login feito com sucesso pelo usuário:", usuario.nome);
         return res.status(200).json({ token, nome: usuario.nome });
     } catch (erro) {
         return res.status(500).json({ erro: "Erro no login." });
@@ -126,60 +142,46 @@ app.get('/api/ranking', autenticarToken, async (req, res) => {
 });
 
 // ==========================================
-// 5A. ROTA DO CHAT NORMAL (Texto)
+// 5. ROTAS DA IA
 // ==========================================
 app.post('/api/chat', autenticarToken, async (req, res) => {
     try {
         const { pergunta } = req.body;
-        const userId = req.usuario.id;
-
         if (!pergunta) return res.status(400).json({ erro: "A pergunta é obrigatória." });
 
-        // CORRIGIDO A PEGADINHA DO PROFESSOR: O modelo 3.5 não funciona aqui.
         const model = genAI.getGenerativeModel({ model: "gemini-3.5-flash-lite" });
         const resultadoIA = await model.generateContent(pergunta);
         const respostaTexto = resultadoIA.response.text();
 
         const novaMensagem = new Mensagem({
-            usuarioId: userId,
+            usuarioId: req.usuario.id,
             pergunta: pergunta,
-            respostaIA: respostaTexto,
-            imagemUrl: null
+            respostaIA: respostaTexto
         });
         await novaMensagem.save();
 
         return res.status(200).json({ resposta: respostaTexto });
     } catch (erro) {
-        console.error("Erro no chat:", erro);
         return res.status(500).json({ erro: "Erro interno no servidor." });
     }
 });
 
-// ==========================================
-// 5B. ROTA DA VISÃO MULTIMODAL (Imagens)
-// ==========================================
 app.post('/api/chat/vision', autenticarToken, upload.single('imagem'), async (req, res) => {
     try {
         const { pergunta } = req.body;
-        const userId = req.usuario.id;
-
         if (!pergunta) return res.status(400).json({ erro: "A pergunta é obrigatória." });
 
         let imagemUrlCloudinary = null;
         let imagePart = null;
 
         if (req.file) {
-            if (req.file.mimetype === 'application/pdf') {
-                return res.status(400).json({ erro: "Arquivos PDF não suportados." });
-            }
-
+            if (req.file.mimetype === 'application/pdf') return res.status(400).json({ erro: "PDF não suportado." });
             const base64Image = req.file.buffer.toString("base64");
             imagePart = { inlineData: { data: base64Image, mimeType: req.file.mimetype } };
 
             imagemUrlCloudinary = await new Promise((resolve, reject) => {
                 const stream = cloudinary.uploader.upload_stream({ folder: "chat-ia" }, (erro, resultado) => {
-                    if (resultado) resolve(resultado.secure_url);
-                    else reject(erro);
+                    if (resultado) resolve(resultado.secure_url); else reject(erro);
                 });
                 stream.end(req.file.buffer);
             });
@@ -191,7 +193,7 @@ app.post('/api/chat/vision', autenticarToken, upload.single('imagem'), async (re
         const respostaTexto = resultadoIA.response.text();
 
         const novaMensagem = new Mensagem({
-            usuarioId: userId,
+            usuarioId: req.usuario.id,
             pergunta: pergunta,
             respostaIA: respostaTexto,
             imagemUrl: imagemUrlCloudinary
@@ -199,9 +201,7 @@ app.post('/api/chat/vision', autenticarToken, upload.single('imagem'), async (re
         await novaMensagem.save();
 
         return res.status(200).json({ resposta: respostaTexto, imagemUrl: imagemUrlCloudinary });
-
     } catch (erro) {
-        console.error("Erro na visão:", erro);
         return res.status(500).json({ erro: "Erro interno." });
     }
 });
