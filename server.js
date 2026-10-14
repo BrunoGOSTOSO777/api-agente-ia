@@ -15,14 +15,19 @@ app.use(express.json());
 app.use(cors());
 
 // ==========================================
-// 🕵️‍♂️ DETETIVE: Radar de Requisições
+// 🕵️‍♂️ DETETIVE: Radar de Requisições (Protegido)
 // ==========================================
 app.use((req, res, next) => {
     console.log(`\n🌍 Nova Requisição: [${req.method}] ${req.url}`);
-    if (Object.keys(req.body).length > 0) {
+    if (req.body && Object.keys(req.body).length > 0) {
         console.log("📦 Dados recebidos:", req.body);
     }
     next();
+});
+
+// Rota raiz para o Render saber que o servidor está vivo
+app.get('/', (req, res) => {
+    res.send("Servidor da IA Multimodal Operacional! 🚀");
 });
 
 // ==========================================
@@ -92,9 +97,7 @@ app.post('/api/auth/register', async (req, res) => {
     try {
         const { nome, email, senha } = req.body;
         
-        // Trava de segurança para não dar Erro 500 se enviar vazio
         if (!nome || !email || !senha) {
-            console.log("❌ Tentativa de cadastro com campos vazios.");
             return res.status(400).json({ erro: "Preencha todos os campos antes de cadastrar!" });
         }
 
@@ -107,7 +110,7 @@ app.post('/api/auth/register', async (req, res) => {
         console.log("✅ Usuário salvo com sucesso no Banco de Dados!");
         return res.status(201).json({ sucesso: true, mensagem: "Cadastro realizado!" });
     } catch (erro) {
-        console.error("🚨 ERRO FATAL AO SALVAR:", erro);
+        console.error("🚨 ERRO AO SALVAR:", erro);
         return res.status(500).json({ erro: "Erro interno: " + erro.message });
     }
 });
@@ -149,7 +152,7 @@ app.post('/api/chat', autenticarToken, async (req, res) => {
         const { pergunta } = req.body;
         if (!pergunta) return res.status(400).json({ erro: "A pergunta é obrigatória." });
 
-        const model = genAI.getGenerativeModel({ model: "gemini-3.5-flash-lite" });
+        const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
         const resultadoIA = await model.generateContent(pergunta);
         const respostaTexto = resultadoIA.response.text();
 
@@ -187,7 +190,7 @@ app.post('/api/chat/vision', autenticarToken, upload.single('imagem'), async (re
             });
         }
 
-        const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+        const model = genAI.getGenerativeModel({ model: "gemini-3.5-flash-lite" });
         const conteudo = imagePart ? [pergunta, imagePart] : pergunta;
         const resultadoIA = await model.generateContent(conteudo);
         const respostaTexto = resultadoIA.response.text();
