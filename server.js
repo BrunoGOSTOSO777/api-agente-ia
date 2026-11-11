@@ -25,9 +25,19 @@ app.use((req, res, next) => {
     next();
 });
 
-// Rota raiz para o Render saber que o servidor está vivo
-app.get('/', (req, res) => {
-    res.send("Servidor da IA Multimodal Operacional! 🚀");
+// ==========================================
+// 🏥 SPRINT 5: HEALTH CHECK (Status da API)
+// ==========================================
+app.get('/api/health', (req, res) => {
+    // Verifica se o MongoDB está conectado (1 = conectado)
+    const statusBanco = mongoose.connection.readyState === 1 ? "conectado" : "desconectado";
+    const statusCode = statusBanco === "conectado" ? 200 : 503;
+
+    return res.status(statusCode).json({
+        status: statusBanco === "conectado" ? "ok" : "erro",
+        bancoDeDados: statusBanco,
+        timestamp: new Date().toISOString()
+    });
 });
 
 // ==========================================
@@ -145,7 +155,7 @@ app.get('/api/ranking', autenticarToken, async (req, res) => {
 });
 
 // ==========================================
-// 5. ROTAS DA IA
+// 5. ROTAS DA IA (Texto e Visão)
 // ==========================================
 app.post('/api/chat', autenticarToken, async (req, res) => {
     try {
@@ -190,7 +200,7 @@ app.post('/api/chat/vision', autenticarToken, upload.single('imagem'), async (re
             });
         }
 
-        const model = genAI.getGenerativeModel({ model: "gemini-3.5-flash-lite" });
+        const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
         const conteudo = imagePart ? [pergunta, imagePart] : pergunta;
         const resultadoIA = await model.generateContent(conteudo);
         const respostaTexto = resultadoIA.response.text();

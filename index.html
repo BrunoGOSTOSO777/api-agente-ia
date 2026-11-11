@@ -22,11 +22,19 @@
         .upload-area { display: flex; align-items: center; gap: 10px; margin-bottom: 15px; background: #2b2b2b; padding: 10px; border-radius: 8px;}
         input[type="file"] { display: none; }
         .btn-upload { background: #ff9800; padding: 10px; border-radius: 8px; cursor: pointer; font-weight: bold; text-align: center;}
+
+        /* Estilo do Farol de Saúde */
+        #api-status { margin-bottom: 15px; font-weight: bold; font-size: 14px; background: #222; padding: 8px 15px; border-radius: 20px; text-align: center; }
     </style>
 </head>
 <body>
 
     <h2 style="color: #ff9800;">👁️ IA Multimodal (Visão)</h2>
+    
+    <!-- SPRINT 5: Indicador de Saúde da API -->
+    <div id="api-status">
+        🟡 Checando sistema...
+    </div>
 
     <!-- TELA DE LOGIN / CADASTRO -->
     <div class="container" id="tela-login">
@@ -67,8 +75,36 @@
 
     <script>
         // SEU LINK DO RENDER:
-        const URL_API = "https://api-agente-ia-1-kem6.onrender.com";
+        const URL_API = "https://api-agente-ia-1-kem6.onrender.com/api";
 
+        // =========================================================
+        // SPRINT 5: Checagem de Saúde Oculta
+        // =========================================================
+        async function checarSaude() {
+            const statusDiv = document.getElementById("api-status");
+            try {
+                const res = await fetch(`${URL_API}/health`);
+                const dados = await res.json();
+                
+                if (res.ok && dados.bancoDeDados === "conectado") {
+                    statusDiv.innerHTML = "🟢 Sistema Operacional";
+                    statusDiv.style.color = "#28a745"; // Verde
+                } else {
+                    statusDiv.innerHTML = "🔴 Banco de Dados Offline";
+                    statusDiv.style.color = "#dc3545"; // Vermelho
+                }
+            } catch (erro) {
+                statusDiv.innerHTML = "🔴 API Offline (Servidor Dormindo ou com Erro)";
+                statusDiv.style.color = "#dc3545";
+            }
+        }
+        
+        // Dispara a checagem assim que a tela abre
+        checarSaude();
+
+        // =========================================================
+        // RESTANTE DO CÓDIGO DA APLICAÇÃO
+        // =========================================================
         window.onload = () => {
             const token = localStorage.getItem('token_saas');
             const nome = localStorage.getItem('nome_user');
@@ -91,20 +127,20 @@
             const nome = document.getElementById("reg-nome").value;
             const email = document.getElementById("log-email").value;
             const senha = document.getElementById("log-senha").value;
-            const res = await fetch(`${URL_API}/api/auth/register`, {
+            const res = await fetch(`${URL_API}/auth/register`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ nome, email, senha })
             });
             const dados = await res.json();
-            if (res.ok) alert("Cadastrado! Faça o Login.");
+            if (res.ok) alert("Cadastrado com sucesso! Agora clique em Entrar.");
             else alert(dados.erro);
         }
 
         async function fazerLogin() {
             const email = document.getElementById("log-email").value;
             const senha = document.getElementById("log-senha").value;
-            const res = await fetch(`${URL_API}/api/auth/login`, {
+            const res = await fetch(`${URL_API}/auth/login`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ email, senha })
@@ -117,7 +153,6 @@
             } else { alert(dados.erro); }
         }
 
-        // Preview da Imagem no HTML
         function mostrarPreview() {
             const input = document.getElementById('imagemUpload');
             const preview = document.getElementById('miniatura');
@@ -145,7 +180,6 @@
 
             if (!texto && !arquivo) return alert("Envie uma mensagem ou uma imagem!");
 
-            // 1. Mostrar no HTML o que o usuário enviou
             let balaoUser = `<div class="msg user">`;
             if (arquivo) {
                 const urlTemporaria = URL.createObjectURL(arquivo);
@@ -156,7 +190,6 @@
             historico.innerHTML += balaoUser;
             historico.scrollTop = historico.scrollHeight;
 
-            // Limpa os campos
             inputPergunta.value = "";
             inputImagem.value = "";
             document.getElementById('miniatura').style.display = 'none';
@@ -167,18 +200,25 @@
             btn.disabled = true;
 
             try {
-                // FASE 4: O FormData permite enviar Imagens + Textos juntos!
                 const formData = new FormData();
                 formData.append("pergunta", texto || "Descreva esta imagem.");
                 if (arquivo) formData.append("imagem", arquivo);
 
-                const res = await fetch(`${URL_API}/api/chat/vision`, {
+                // Define qual rota usar dependendo se tem imagem ou não
+                const rotaAPI = arquivo ? `${URL_API}/chat/vision` : `${URL_API}/chat`;
+                const cabecalhos = { "Authorization": `Bearer ${token}` };
+                
+                // Se NÃO for arquivo, manda como JSON
+                let corpoRequisicao = formData;
+                if (!arquivo) {
+                    cabecalhos["Content-Type"] = "application/json";
+                    corpoRequisicao = JSON.stringify({ pergunta: texto });
+                }
+
+                const res = await fetch(rotaAPI, {
                     method: "POST",
-                    headers: { 
-                        "Authorization": `Bearer ${token}` 
-                        // IMPORTANTE: NÃO usamos 'Content-Type': 'application/json' quando enviamos arquivos!
-                    },
-                    body: formData
+                    headers: cabecalhos,
+                    body: corpoRequisicao
                 });
                 
                 const dados = await res.json();
@@ -187,14 +227,14 @@
                     alert(dados.erro);
                     btn.innerText = "Enviar";
                     btn.disabled = false;
+                    if(res.status === 401) sairDaConta();
                     return;
                 }
 
-                // Exibe a resposta e a URL do Cloudinary se existir
                 let balaoBot = `<div class="msg bot">`;
-                balaoBot += `<b>Guardião Visual:</b><br>${dados.resposta.replace(/\n/g, '<br>')}`;
+                balaoBot += `<b>Guardião:</b><br>${dados.resposta.replace(/\n/g, '<br>')}`;
                 if(dados.imagemUrl) {
-                    balaoBot += `<br><br><small style="color: #aaa;">☁️ Imagem salva em segurança no Cloudinary!</small>`;
+                    balaoBot += `<br><br><small style="color: #aaa;">☁️ Imagem salva no Cloudinary!</small>`;
                 }
                 balaoBot += `</div>`;
                 
@@ -202,7 +242,7 @@
                 historico.scrollTop = historico.scrollHeight;
 
             } catch (e) {
-                historico.innerHTML += `<div class="msg bot" style="color: red;">Erro ao processar imagem.</div>`;
+                historico.innerHTML += `<div class="msg bot" style="color: red;">Erro ao processar mensagem.</div>`;
             }
 
             btn.innerText = "Enviar";
@@ -210,4 +250,4 @@
         }
     </script>
 </body>
-</html>git add .
+</html>
