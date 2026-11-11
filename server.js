@@ -15,13 +15,10 @@ app.use(express.json());
 app.use(cors());
 
 // ==========================================
-// 🕵️‍♂️ DETETIVE: Radar de Requisições (Protegido)
+// 🕵️‍♂️ RADAR SIMPLES (Não trava mais com GET!)
 // ==========================================
 app.use((req, res, next) => {
-    console.log(`\n🌍 Nova Requisição: [${req.method}] ${req.url}`);
-    if (req.body && Object.keys(req.body).length > 0) {
-        console.log("📦 Dados recebidos:", req.body);
-    }
+    console.log(`🌍 [${req.method}] ${req.url}`);
     next();
 });
 
@@ -29,7 +26,6 @@ app.use((req, res, next) => {
 // 🏥 SPRINT 5: HEALTH CHECK (Status da API)
 // ==========================================
 app.get('/api/health', (req, res) => {
-    // Verifica se o MongoDB está conectado (1 = conectado)
     const statusBanco = mongoose.connection.readyState === 1 ? "conectado" : "desconectado";
     const statusCode = statusBanco === "conectado" ? 200 : 503;
 
@@ -54,10 +50,10 @@ const usuarioSchema = new mongoose.Schema({
     xp: { type: Number, default: 0 }
 });
 
-usuarioSchema.pre('save', async function(next) {
-    if (!this.isModified('senha')) return next();
+// Criptografia limpa e moderna (sem travar o save)
+usuarioSchema.pre('save', async function() {
+    if (!this.isModified('senha')) return;
     this.senha = await bcrypt.hash(this.senha, 10);
-    next();
 });
 
 const Usuario = mongoose.models.Usuario || mongoose.model('Usuario', usuarioSchema);
@@ -108,7 +104,7 @@ app.post('/api/auth/register', async (req, res) => {
         const { nome, email, senha } = req.body;
         
         if (!nome || !email || !senha) {
-            return res.status(400).json({ erro: "Preencha todos os campos antes de cadastrar!" });
+            return res.status(400).json({ erro: "Preencha todos os campos!" });
         }
 
         const existe = await Usuario.findOne({ email });
@@ -117,10 +113,10 @@ app.post('/api/auth/register', async (req, res) => {
         const novoUser = new Usuario({ nome, email, senha });
         await novoUser.save();
         
-        console.log("✅ Usuário salvo com sucesso no Banco de Dados!");
+        console.log("✅ Usuário cadastrado com sucesso:", nome);
         return res.status(201).json({ sucesso: true, mensagem: "Cadastro realizado!" });
     } catch (erro) {
-        console.error("🚨 ERRO AO SALVAR:", erro);
+        console.error("🚨 ERRO NO CADASTRO:", erro.message);
         return res.status(500).json({ erro: "Erro interno: " + erro.message });
     }
 });
@@ -137,7 +133,7 @@ app.post('/api/auth/login', async (req, res) => {
         const secret = process.env.JWT_SECRET || 'MinhaPalavraSuperSecretaEDificilDeAdivinhar2026';
         const token = jwt.sign({ id: usuario._id, nome: usuario.nome }, secret, { expiresIn: '24h' });
 
-        console.log("✅ Login feito com sucesso pelo usuário:", usuario.nome);
+        console.log("✅ Login realizado com sucesso:", usuario.nome);
         return res.status(200).json({ token, nome: usuario.nome });
     } catch (erro) {
         return res.status(500).json({ erro: "Erro no login." });
