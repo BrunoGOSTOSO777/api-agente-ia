@@ -15,7 +15,7 @@ app.use(express.json());
 app.use(cors());
 
 // ==========================================
-// 🕵️‍♂️ RADAR SIMPLES (Não trava mais com GET!)
+// 🕵️‍♂️ RADAR SIMPLES (Não trava mais nada!)
 // ==========================================
 app.use((req, res, next) => {
     console.log(`🌍 [${req.method}] ${req.url}`);
@@ -50,7 +50,7 @@ const usuarioSchema = new mongoose.Schema({
     xp: { type: Number, default: 0 }
 });
 
-// Criptografia limpa e moderna (sem travar o save)
+// 🚨 CORREÇÃO CRUCIAL: Sem 'next', para não dar 'next is not a function'
 usuarioSchema.pre('save', async function() {
     if (!this.isModified('senha')) return;
     this.senha = await bcrypt.hash(this.senha, 10);
@@ -111,9 +111,9 @@ app.post('/api/auth/register', async (req, res) => {
         if (existe) return res.status(400).json({ erro: "E-mail já cadastrado!" });
 
         const novoUser = new Usuario({ nome, email, senha });
-        await novoUser.save();
+        await novoUser.save(); // Agora salva sem quebrar!
         
-        console.log("✅ Usuário cadastrado com sucesso:", nome);
+        console.log("✅ Usuário salvo com sucesso no Banco:", nome);
         return res.status(201).json({ sucesso: true, mensagem: "Cadastro realizado!" });
     } catch (erro) {
         console.error("🚨 ERRO NO CADASTRO:", erro.message);
